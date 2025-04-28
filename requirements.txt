@@ -3,4 +3,6 @@ altair==5.2.0
 pandas
 numpy
 matplotlib
+pvlib
+time
 # any other packages you use
