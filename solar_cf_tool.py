@@ -27,12 +27,15 @@ st.sidebar.header("Parameters")
 tilt_angle = st.sidebar.slider("Tilt Angle (°)", min_value=0, max_value=60, value=20)
 PR = st.sidebar.slider("Performance Ratio (PR)", min_value=0.5, max_value=1.0, value=0.85)
 
+# --- Initialize session state ---
+if 'run_analysis' not in st.session_state:
+    st.session_state['run_analysis'] = False
+if 'result_df' not in st.session_state:
+    st.session_state['result_df'] = None
+
 if uploaded_file:
     site_df = pd.read_excel(uploaded_file)
     st.success(f"✅ File uploaded successfully. {len(site_df)} sites found.")
-
-    if 'run_analysis' not in st.session_state:
-        st.session_state['run_analysis'] = False
 
     if st.button("🚀 Run Analysis"):
         st.session_state['run_analysis'] = True
@@ -40,19 +43,10 @@ if uploaded_file:
     if st.session_state['run_analysis']:
         start_time = time.time()
         results = []
-
-    # (your normal processing code here... looping through sites...)
-
-        result_df = pd.DataFrame(results)
-        #st.success("✅ Analysis completed!")
-        #st.dataframe(result_df)
-
-    # (then your download button, plots, and maps code below)
-
+        progress_bar = st.progress(0)
 
         # --- Loop Through Sites ---
-        progress_bar = st.progress(0)
-        for _, row in site_df.iterrows():
+        for idx, row in site_df.iterrows():
             name = row['name']
             lat = row['Lat']
             lon = row['Long']
@@ -85,8 +79,6 @@ if uploaded_file:
                 specific_prod = annual_gii * PR
                 uplift = ((annual_gii / annual_ghi) - 1) * 100
                 cf_percent = round((specific_prod / 8760) * 100, 3)
-                progress = (idx + 1) / len(site_df)
-                progress_bar.progress(progress)
 
                 results.append({
                     'Site': name,
@@ -110,90 +102,98 @@ if uploaded_file:
                 })
                 st.error(f"❌ Failed for {name}: {e}")
 
+            # Update progress bar
+            progress = (idx + 1) / len(site_df)
+            progress_bar.progress(progress)
+
         result_df = pd.DataFrame(results)
-        st.success("✅ Analysis completed!")
+        st.session_state['result_df'] = result_df  # Save result in session
+        elapsed = timedelta(seconds=int(time.time() - start_time))
+        st.success(f"✅ Analysis completed! (⏱️ {elapsed})")
         st.dataframe(result_df)
 
-        # --- Correct Download as Excel ---
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            result_df.to_excel(writer, index=False)
-        data = output.getvalue()
+# --- If results exist, allow download and show plots/maps ---
+if st.session_state.get('result_df') is not None:
+    result_df = st.session_state['result_df']
 
-        st.download_button(
-            label="📥 Download Results as Excel",
-            data=data,
-            file_name="solar_cf_results.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+    # --- Correct Download as Excel ---
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        result_df.to_excel(writer, index=False)
+    data = output.getvalue()
 
-        # --- Plots ---
-        valid_df = result_df.dropna(subset=['CF (%)'])
-        cf_values = valid_df['CF (%)']
+    st.download_button(
+        label="📥 Download Results as Excel",
+        data=data,
+        file_name="solar_cf_results.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
-        st.subheader("📈 Capacity Factor Analysis")
+    # --- Plots ---
+    valid_df = result_df.dropna(subset=['CF (%)'])
+    cf_values = valid_df['CF (%)']
 
-        col1, col2 = st.columns(2)
-        with col1:
-            fig1, ax1 = plt.subplots()
-            ax1.hist(cf_values, bins=10, color='skyblue', edgecolor='black')
-            ax1.set_title("CF Histogram")
-            ax1.set_xlabel("CF (%)")
-            ax1.set_ylabel("Number of Sites")
-            st.pyplot(fig1)
+    st.subheader("📈 Capacity Factor Analysis")
 
-        with col2:
-            fig2, ax2 = plt.subplots()
-            ax2.boxplot(cf_values, vert=False, patch_artist=True,
-                        boxprops=dict(facecolor='lightgreen'))
-            ax2.set_title("CF Boxplot")
-            ax2.set_xlabel("CF (%)")
-            st.pyplot(fig2)
+    col1, col2 = st.columns(2)
+    with col1:
+        fig1, ax1 = plt.subplots()
+        ax1.hist(cf_values, bins=10, color='skyblue', edgecolor='black')
+        ax1.set_title("CF Histogram")
+        ax1.set_xlabel("CF (%)")
+        ax1.set_ylabel("Number of Sites")
+        st.pyplot(fig1)
 
-        fig3, ax3 = plt.subplots(figsize=(10, len(valid_df) * 0.4))
-        sorted_cf_df = valid_df.sort_values('CF (%)', ascending=False)
-        ax3.barh(sorted_cf_df['Site'], sorted_cf_df['CF (%)'], color='salmon', edgecolor='black')
-        ax3.set_xlabel("CF (%)")
-        ax3.set_title("Capacity Factor by Site")
-        ax3.invert_yaxis()
-        ax3.grid(axis='x')
-        st.pyplot(fig3)
+    with col2:
+        fig2, ax2 = plt.subplots()
+        ax2.boxplot(cf_values, vert=False, patch_artist=True,
+                    boxprops=dict(facecolor='lightgreen'))
+        ax2.set_title("CF Boxplot")
+        ax2.set_xlabel("CF (%)")
+        st.pyplot(fig2)
 
-        # --- Interactive Map ---
-        st.subheader("🗺️ Site Map with Satellite Basemap")
+    fig3, ax3 = plt.subplots(figsize=(10, len(valid_df) * 0.4))
+    sorted_cf_df = valid_df.sort_values('CF (%)', ascending=False)
+    ax3.barh(sorted_cf_df['Site'], sorted_cf_df['CF (%)'], color='salmon', edgecolor='black')
+    ax3.set_xlabel("CF (%)")
+    ax3.set_title("Capacity Factor by Site")
+    ax3.invert_yaxis()
+    ax3.grid(axis='x')
+    st.pyplot(fig3)
 
-        map_center = [valid_df['Lat'].mean(), valid_df['Long'].mean()]
-        site_map = folium.Map(location=map_center, zoom_start=5, tiles=None)
+    # --- Interactive Map ---
+    st.subheader("🗺️ Site Map with Satellite Basemap")
 
-        folium.TileLayer(
-            tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-            attr='Google',
-            name='Google Satellite',
-            overlay=False,
-            control=True
+    map_center = [valid_df['Lat'].mean(), valid_df['Long'].mean()]
+    site_map = folium.Map(location=map_center, zoom_start=5, tiles=None)
+
+    folium.TileLayer(
+        tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        attr='Google',
+        name='Google Satellite',
+        overlay=False,
+        control=True
+    ).add_to(site_map)
+
+    min_cf = valid_df['CF (%)'].min()
+    max_cf = valid_df['CF (%)'].max()
+    color_scale = branca.colormap.LinearColormap(
+        colors=['red', 'orange', 'yellow', 'green'],
+        vmin=min_cf, vmax=max_cf,
+        caption='Capacity Factor (%)'
+    )
+
+    for _, row in valid_df.iterrows():
+        folium.CircleMarker(
+            location=[row['Lat'], row['Long']],
+            radius=6,
+            color=color_scale(row['CF (%)']),
+            fill=True,
+            fill_color=color_scale(row['CF (%)']),
+            fill_opacity=0.8,
+            popup=folium.Popup(f"{row['Site']}<br>CF: {row['CF (%)']:.2f}%", max_width=200)
         ).add_to(site_map)
 
-        min_cf = valid_df['CF (%)'].min()
-        max_cf = valid_df['CF (%)'].max()
-        color_scale = branca.colormap.LinearColormap(
-            colors=['red', 'orange', 'yellow', 'green'],
-            vmin=min_cf, vmax=max_cf,
-            caption='Capacity Factor (%)'
-        )
+    color_scale.add_to(site_map)
+    st_data = st_folium(site_map, width=900)
 
-        for _, row in valid_df.iterrows():
-            folium.CircleMarker(
-                location=[row['Lat'], row['Long']],
-                radius=6,
-                color=color_scale(row['CF (%)']),
-                fill=True,
-                fill_color=color_scale(row['CF (%)']),
-                fill_opacity=0.8,
-                popup=folium.Popup(f"{row['Site']}<br>CF: {row['CF (%)']:.2f}%", max_width=200)
-            ).add_to(site_map)
-
-        color_scale.add_to(site_map)
-        st_data = st_folium(site_map, width=900)
-
-        elapsed = timedelta(seconds=int(time.time() - start_time))
-        st.info(f"⏱️ Total Execution Time: {elapsed}")
