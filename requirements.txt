@@ -3,6 +3,8 @@ altair==5.2.0
 pandas
 numpy
 matplotlib
-pvlib
 folium
 streamlit-folium
+openpyxl
+git+https://github.com/pvlib/pvlib-python.git
+
