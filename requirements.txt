@@ -4,5 +4,5 @@ pandas
 numpy
 matplotlib
 pvlib
-time
-# any other packages you use
+folium
+streamlit-folium
