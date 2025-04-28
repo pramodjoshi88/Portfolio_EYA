@@ -22,25 +22,26 @@ st.markdown("Upload a site list and estimate Specific Production (kWh/kWp) and C
 # --- Upload File ---
 uploaded_file = st.file_uploader("📁 Upload your 'sites.xlsx' file (columns: name, Lat, Long)", type=["xlsx"])
 
-# --- Parameters ---
+# --- Sidebar Parameters ---
 st.sidebar.header("Parameters")
 tilt_angle = st.sidebar.slider("Tilt Angle (°)", min_value=0, max_value=60, value=20)
 PR = st.sidebar.slider("Performance Ratio (PR)", min_value=0.5, max_value=1.0, value=0.85)
 
 # --- Initialize session state ---
-if 'run_analysis' not in st.session_state:
-    st.session_state['run_analysis'] = False
+if 'analysis_done' not in st.session_state:
+    st.session_state['analysis_done'] = False
 if 'result_df' not in st.session_state:
     st.session_state['result_df'] = None
 
+# --- If file is uploaded ---
 if uploaded_file:
     site_df = pd.read_excel(uploaded_file)
     st.success(f"✅ File uploaded successfully. {len(site_df)} sites found.")
 
-    if st.button("🚀 Run Analysis"):
-        st.session_state['run_analysis'] = True
+    run_button = st.button("🚀 Run Analysis")
 
-    if st.session_state['run_analysis']:
+    if run_button:
+        st.session_state['analysis_done'] = False  # Reset first
         start_time = time.time()
         results = []
         progress_bar = st.progress(0)
@@ -106,17 +107,20 @@ if uploaded_file:
             progress = (idx + 1) / len(site_df)
             progress_bar.progress(progress)
 
+        # --- Save results to session ---
         result_df = pd.DataFrame(results)
-        st.session_state['result_df'] = result_df  # Save result in session
+        st.session_state['result_df'] = result_df
+        st.session_state['analysis_done'] = True
+
         elapsed = timedelta(seconds=int(time.time() - start_time))
         st.success(f"✅ Analysis completed! (⏱️ {elapsed})")
         st.dataframe(result_df)
 
-# --- If results exist, allow download and show plots/maps ---
-if st.session_state.get('result_df') is not None:
+# --- Show results if analysis was done ---
+if st.session_state['analysis_done'] and st.session_state['result_df'] is not None:
     result_df = st.session_state['result_df']
 
-    # --- Correct Download as Excel ---
+    # --- Download Button ---
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         result_df.to_excel(writer, index=False)
@@ -196,4 +200,3 @@ if st.session_state.get('result_df') is not None:
 
     color_scale.add_to(site_map)
     st_data = st_folium(site_map, width=900)
-
