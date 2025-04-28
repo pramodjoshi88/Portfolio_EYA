@@ -51,6 +51,7 @@ if uploaded_file:
 
 
         # --- Loop Through Sites ---
+        progress_bar = st.progress(0)
         for _, row in site_df.iterrows():
             name = row['name']
             lat = row['Lat']
@@ -84,6 +85,8 @@ if uploaded_file:
                 specific_prod = annual_gii * PR
                 uplift = ((annual_gii / annual_ghi) - 1) * 100
                 cf_percent = round((specific_prod / 8760) * 100, 3)
+                progress = (idx + 1) / len(site_df)
+                progress_bar.progress(progress)
 
                 results.append({
                     'Site': name,
