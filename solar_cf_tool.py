@@ -54,18 +54,7 @@ if uploaded_file:
 
         # --- Loop Through Sites ---
         for idx, row in site_df.iterrows():
-            # Update progress
-            progress = (idx + 1) / total_sites
-            progress_bar.progress(progress)
-
-            # Update live elapsed time
-            elapsed_seconds = int(time.time() - st.session_state['start_time'])
-            elapsed_placeholder.info(f"⏱️ Elapsed Time: {timedelta(seconds=elapsed_seconds)}")
-
-            # Update status
-            current_site = row['name']
-            status_placeholder.info(f"🏗️ Running site {idx + 1} of {total_sites} ({current_site}) — {int(progress * 100)}% done.")
-
+            name = row['name']
             lat = row['Lat']
             lon = row['Long']
 
@@ -100,7 +89,7 @@ if uploaded_file:
                 cf_percent = round((specific_prod / 8760) * 100, 3)
 
                 results.append({
-                    'Site': current_site,
+                    'Site': name,
                     'Lat': lat,
                     'Long': lon,
                     'GHI (kWh/m²)': round(annual_ghi, 1),
@@ -112,29 +101,40 @@ if uploaded_file:
 
             except Exception as e:
                 results.append({
-                    'Site': current_site,
+                    'Site': name,
                     'Lat': lat,
                     'Long': lon,
                     'GII (kWh/m²)': None,
                     'Specific Production (kWh/kWp)': None,
                     'CF (%)': None
                 })
-                st.error(f"❌ Failed for {current_site}: {e}")
+                st.error(f"❌ Failed for {name}: {e}")
 
-        # --- Save results to session ---
+            # --- Update progress bar and elapsed time ---
+            progress = (idx + 1) / total_sites
+            progress_bar.progress(progress)
+            elapsed_seconds = int(time.time() - st.session_state['start_time'])
+            elapsed_placeholder.info(f"⏱️ Elapsed Time: {timedelta(seconds=elapsed_seconds)}")
+            status_placeholder.info(f"🏗️ Running site {idx + 1} of {total_sites} — {int(progress * 100)}% done.")
+
+        # --- After all sites processed ---
         result_df = pd.DataFrame(results)
         st.session_state['result_df'] = result_df
         st.session_state['analysis_done'] = True
         st.session_state['just_finished'] = True
-
         st.session_state['final_elapsed'] = timedelta(seconds=int(time.time() - st.session_state['start_time']))
+
+# --- After analysis finished ---
+if st.session_state['just_finished']:
+    st.success(f"✅ Analysis completed! (⏱️ Total Time: {st.session_state['final_elapsed']})")
+    st.session_state['just_finished'] = False  # Reset
+
+# --- Always show elapsed time if available ---
+if st.session_state['final_elapsed']:
+    st.info(f"⏱️ Elapsed Time: {st.session_state['final_elapsed']}")
 
 # --- Show results if analysis was done ---
 if st.session_state['analysis_done'] and st.session_state['result_df'] is not None:
-    if st.session_state['just_finished']:
-        st.success(f"✅ Analysis completed! (⏱️ Total Time: {st.session_state['final_elapsed']})")
-        st.session_state['just_finished'] = False  # Reset
-
     result_df = st.session_state['result_df']
     st.dataframe(result_df)
 
