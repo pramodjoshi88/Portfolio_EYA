@@ -32,6 +32,10 @@ if 'analysis_done' not in st.session_state:
     st.session_state['analysis_done'] = False
 if 'result_df' not in st.session_state:
     st.session_state['result_df'] = None
+if 'just_finished' not in st.session_state:
+    st.session_state['just_finished'] = False
+if 'start_time' not in st.session_state:
+    st.session_state['start_time'] = None
 
 # --- If file is uploaded ---
 if uploaded_file:
@@ -42,12 +46,19 @@ if uploaded_file:
 
     if run_button:
         st.session_state['analysis_done'] = False  # Reset first
-        start_time = time.time()
+        st.session_state['just_finished'] = False
+        st.session_state['start_time'] = time.time()
+
         results = []
         progress_bar = st.progress(0)
+        elapsed_placeholder = st.empty()  # Placeholder to show live elapsed time
 
         # --- Loop Through Sites ---
         for idx, row in site_df.iterrows():
+            # Update live elapsed time display
+            elapsed_seconds = int(time.time() - st.session_state['start_time'])
+            elapsed_placeholder.info(f"⏱️ Elapsed Time: {timedelta(seconds=elapsed_seconds)}")
+
             name = row['name']
             lat = row['Lat']
             lon = row['Long']
@@ -110,15 +121,16 @@ if uploaded_file:
         # --- Save results to session ---
         result_df = pd.DataFrame(results)
         st.session_state['result_df'] = result_df
-        
         st.session_state['analysis_done'] = True
-
-        elapsed = timedelta(seconds=int(time.time() - start_time))
-        st.success(f"✅ Analysis completed! (⏱️ {elapsed})")
-        st.dataframe(result_df)
+        st.session_state['just_finished'] = True
 
 # --- Show results if analysis was done ---
 if st.session_state['analysis_done'] and st.session_state['result_df'] is not None:
+    if st.session_state.get('just_finished', False):
+        elapsed_total = timedelta(seconds=int(time.time() - st.session_state['start_time']))
+        st.success(f"✅ Analysis completed! (⏱️ Total Time: {elapsed_total})")
+        st.session_state['just_finished'] = False  # Reset flag
+
     result_df = st.session_state['result_df']
     st.dataframe(result_df)
 
