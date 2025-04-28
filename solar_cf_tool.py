@@ -28,14 +28,9 @@ tilt_angle = st.sidebar.slider("Tilt Angle (°)", min_value=0, max_value=60, val
 PR = st.sidebar.slider("Performance Ratio (PR)", min_value=0.5, max_value=1.0, value=0.85)
 
 # --- Initialize session state ---
-if 'analysis_done' not in st.session_state:
-    st.session_state['analysis_done'] = False
-if 'result_df' not in st.session_state:
-    st.session_state['result_df'] = None
-if 'just_finished' not in st.session_state:
-    st.session_state['just_finished'] = False
-if 'start_time' not in st.session_state:
-    st.session_state['start_time'] = None
+for key in ['analysis_done', 'result_df', 'just_finished', 'start_time', 'final_elapsed']:
+    if key not in st.session_state:
+        st.session_state[key] = None
 
 # --- If file is uploaded ---
 if uploaded_file:
@@ -45,23 +40,35 @@ if uploaded_file:
     run_button = st.button("🚀 Run Analysis")
 
     if run_button:
-        st.session_state['analysis_done'] = False  # Reset first
+        st.session_state['analysis_done'] = False
         st.session_state['just_finished'] = False
         st.session_state['start_time'] = time.time()
+        st.session_state['final_elapsed'] = None
 
         results = []
         progress_bar = st.progress(0)
-        elapsed_placeholder = st.empty()  # Placeholder to show live elapsed time
+        status_placeholder = st.empty()
+        elapsed_placeholder = st.empty()
+
+        total_sites = len(site_df)
 
         # --- Loop Through Sites ---
         for idx, row in site_df.iterrows():
-            # Update live elapsed time display
+            # Update progress
+            progress = (idx + 1) / total_sites
+            progress_bar.progress(progress)
+
+            # Update live elapsed time
             elapsed_seconds = int(time.time() - st.session_state['start_time'])
             elapsed_placeholder.info(f"⏱️ Elapsed Time: {timedelta(seconds=elapsed_seconds)}")
 
-            name = row['name']
+            # Update status
+            current_site = row['name']
+            status_placeholder.info(f"🏗️ Running site {idx + 1} of {total_sites} ({current_site}) — {int(progress * 100)}% done.")
+
             lat = row['Lat']
             lon = row['Long']
+
             try:
                 tmy_data = pvlib.iotools.get_pvgis_tmy(
                     latitude=lat,
@@ -93,7 +100,7 @@ if uploaded_file:
                 cf_percent = round((specific_prod / 8760) * 100, 3)
 
                 results.append({
-                    'Site': name,
+                    'Site': current_site,
                     'Lat': lat,
                     'Long': lon,
                     'GHI (kWh/m²)': round(annual_ghi, 1),
@@ -105,18 +112,14 @@ if uploaded_file:
 
             except Exception as e:
                 results.append({
-                    'Site': name,
+                    'Site': current_site,
                     'Lat': lat,
                     'Long': lon,
                     'GII (kWh/m²)': None,
                     'Specific Production (kWh/kWp)': None,
                     'CF (%)': None
                 })
-                st.error(f"❌ Failed for {name}: {e}")
-
-            # Update progress bar
-            progress = (idx + 1) / len(site_df)
-            progress_bar.progress(progress)
+                st.error(f"❌ Failed for {current_site}: {e}")
 
         # --- Save results to session ---
         result_df = pd.DataFrame(results)
@@ -124,12 +127,13 @@ if uploaded_file:
         st.session_state['analysis_done'] = True
         st.session_state['just_finished'] = True
 
+        st.session_state['final_elapsed'] = timedelta(seconds=int(time.time() - st.session_state['start_time']))
+
 # --- Show results if analysis was done ---
 if st.session_state['analysis_done'] and st.session_state['result_df'] is not None:
-    if st.session_state.get('just_finished', False):
-        elapsed_total = timedelta(seconds=int(time.time() - st.session_state['start_time']))
-        st.success(f"✅ Analysis completed! (⏱️ Total Time: {elapsed_total})")
-        st.session_state['just_finished'] = False  # Reset flag
+    if st.session_state['just_finished']:
+        st.success(f"✅ Analysis completed! (⏱️ Total Time: {st.session_state['final_elapsed']})")
+        st.session_state['just_finished'] = False  # Reset
 
     result_df = st.session_state['result_df']
     st.dataframe(result_df)
