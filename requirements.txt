@@ -1,5 +1,6 @@
-streamlit==1.14.0
+streamlit==1.31.1
+altair==5.2.0
 pandas
 numpy
 matplotlib
-# Add any other libraries you are using
+# any other packages you use
