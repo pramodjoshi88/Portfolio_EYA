@@ -45,7 +45,7 @@ if uploaded_file:
 
         result_df = pd.DataFrame(results)
         #st.success("✅ Analysis completed!")
-        st.dataframe(result_df)
+        #st.dataframe(result_df)
 
     # (then your download button, plots, and maps code below)
 
