@@ -110,6 +110,7 @@ if uploaded_file:
         # --- Save results to session ---
         result_df = pd.DataFrame(results)
         st.session_state['result_df'] = result_df
+        
         st.session_state['analysis_done'] = True
 
         elapsed = timedelta(seconds=int(time.time() - start_time))
@@ -119,6 +120,7 @@ if uploaded_file:
 # --- Show results if analysis was done ---
 if st.session_state['analysis_done'] and st.session_state['result_df'] is not None:
     result_df = st.session_state['result_df']
+    st.dataframe(result_df)
 
     # --- Download Button ---
     output = io.BytesIO()
